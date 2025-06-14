@@ -102,8 +102,8 @@ class EvINRModel(nn.Module):
     def __init__(self,):
         super().__init__()
         self.net = skip(
-        num_input_channels=50, num_output_channels=50, 
-        num_channels_down=128, num_channels_up=128, num_channels_skip=[4, 4, 4, 4, 4], 
+        num_input_channels=1, num_output_channels=1, 
+        num_channels_down=[128, 128, 128, 128, 128], num_channels_up=[128, 128, 128, 128, 128], num_channels_skip=[4, 4, 4, 4, 4], 
         filter_size_down=3, filter_size_up=3, filter_skip_size=1,
         need_sigmoid=True, need_bias=True, 
         pad='zero', upsample_mode='nearest', downsample_mode='stride', act_fun='LeakyReLU', 
@@ -118,22 +118,25 @@ class EvINRModel(nn.Module):
         #cos_comp = torch.cos(freq)
         pe = sin_comp
         #pe = torch.cat([sin_comp, cos_comp], dim=0)
-        pe = pe.reshape(1, num_frame, H, W)
+        pe = pe.reshape(num_frame,1, H, W)
         return pe
 
     def forward(self, timestamps):
-        num_frame = timestamps.shape
+        num_frame = timestamps.shape[0]
         timestamps_map = self.t_map(180,240,timestamps,num_frame)
         log_intensity_preds = self.net(timestamps_map)
         return log_intensity_preds
     
     def get_losses(self, log_intensity_preds, event_frames):
         # temporal supervision to solve the event generation equation
-        event_frames = event_frames.squeeze(-1).unsqueeze(0)
-        event_frame_preds = log_intensity_preds[:,1:,:,:] - log_intensity_preds[:,0: -1,:,:]
-        temperal_loss = F.mse_loss(event_frame_preds, event_frames[:,:-1,:,:])
+        #print(log_intensity_preds.shape)
+        event_frames = event_frames.squeeze(-1).unsqueeze(1)
+        #print(event_frames.shape)
+        
+        event_frame_preds = log_intensity_preds[1:,:,:,:] - log_intensity_preds[0:-1,: ,:,:]
+        temperal_loss = F.mse_loss(event_frame_preds, event_frames[:-1,:,:,:])
         # spatial regularization to reduce noise
-        x_grad = log_intensity_preds[:, : , 1:, :] - log_intensity_preds[:, 0: , :-1, :]
+        x_grad = log_intensity_preds[:, : , 1:, :] - log_intensity_preds[:, : , 0:-1, :]
         y_grad = log_intensity_preds[:, :, : , 1:] - log_intensity_preds[:, :, :, 0:-1]
         spatial_loss = 0.05 * (
             x_grad.abs().mean() + y_grad.abs().mean() + event_frame_preds.abs().mean()
