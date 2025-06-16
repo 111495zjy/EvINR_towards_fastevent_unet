@@ -143,10 +143,10 @@ class EvINRModel(nn.Module):
         )
 
         # loss term to keep the average intensity of each frame constant
-        #const_loss = 0.1 * torch.var(
-            #log_intensity_preds.reshape(log_intensity_preds.shape[0], -1).mean(dim=-1)
-        #)
-        return temperal_loss + spatial_loss #+ const_loss
+        const_loss = 0.06 * torch.var(
+            log_intensity_preds.reshape(log_intensity_preds.shape[0], -1).mean(dim=-1)
+        )
+        return temperal_loss + spatial_loss + const_loss
         
     def tonemapping(self, log_intensity_preds, gamma=0.6):
         intensity_preds = torch.exp(log_intensity_preds).detach()
